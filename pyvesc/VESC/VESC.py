@@ -130,8 +130,9 @@ class VESC(object):
         :return: A msg object with attributes containing the measurement values
         """
         return self.write(self._get_values_msg, num_read_bytes=self._get_values_msg_expected_length)
-
-     def get_firmware_version(self):
+	    
+	    
+    def get_firmware_version(self):
         msg = GetVersion()
         version_message = self.write(encode_request(msg), num_read_bytes=msg._full_msg_size)
 	    # Angenommen, das GetVersion-Objekt besitzt ein Attribut "version" (als String oder Zahl)

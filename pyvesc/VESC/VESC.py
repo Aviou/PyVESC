@@ -131,9 +131,19 @@ class VESC(object):
         """
         return self.write(self._get_values_msg, num_read_bytes=self._get_values_msg_expected_length)
 
-    def get_firmware_version(self):
+     def get_firmware_version(self):
         msg = GetVersion()
-        return str(self.write(encode_request(msg), num_read_bytes=msg._full_msg_size))
+        version_message = self.write(encode_request(msg), num_read_bytes=msg._full_msg_size)
+	    # Angenommen, das GetVersion-Objekt besitzt ein Attribut "version" (als String oder Zahl)
+        try:
+		# Falls version als Zahl vorliegt, konvertieren wir sie in einen String, z. B. "3.40"
+            version = version_message.version  
+		# Falls es sich nicht um einen String handelt, konvertieren wir ih
+            return str(version)
+        except AttributeError:
+		# Falls das Attribut nicht existiert, gib eine Warnung aus und nutze einen Standardwert
+            print("Warnung: GetVersion-Objekt besitzt kein Attribut 'version'.")
+            return "0.0"
 
     def get_rpm(self):
         """

@@ -152,11 +152,37 @@ class VESC(object):
         """
         return self.get_measurements().rpm
 
+    @staticmethod
+    def _resolve_measurement_attribute(measurements, *attribute_names):
+        """Return the first available attribute from ``attribute_names``.
+
+        ``COMM_GET_VALUES`` changed the naming of several fields with the
+        VESC 6 firmware.  Older firmware exposed attributes such as
+        ``current_motor`` and ``duty_now`` while newer firmware renamed these
+        to ``avg_motor_current`` and ``duty_cycle_now`` respectively.  To keep
+        the public API stable we look up the first attribute that exists on the
+        measurement message and return its value.
+        """
+
+        for attr in attribute_names:
+            if hasattr(measurements, attr):
+                return getattr(measurements, attr)
+
+        raise AttributeError(
+            f"None of the expected attributes {attribute_names} are present on "
+            f"the GetValues response"
+        )
+
     def get_duty_cycle(self):
         """
         :return: Current applied duty-cycle
         """
-        return self.get_measurements().duty_now
+        measurements = self.get_measurements()
+        return self._resolve_measurement_attribute(
+            measurements,
+            'duty_cycle_now',
+            'duty_now'
+        )
 
     def get_v_in(self):
         """
@@ -168,13 +194,23 @@ class VESC(object):
         """
         :return: Current motor current
         """
-        return self.get_measurements().current_motor
+        measurements = self.get_measurements()
+        return self._resolve_measurement_attribute(
+            measurements,
+            'avg_motor_current',
+            'current_motor'
+        )
 
     def get_incoming_current(self):
         """
         :return: Current incoming current
         """
-        return self.get_measurements().current_in
+        measurements = self.get_measurements()
+        return self._resolve_measurement_attribute(
+            measurements,
+            'avg_input_current',
+            'current_in'
+        )
 
 
 

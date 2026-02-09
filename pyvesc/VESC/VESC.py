@@ -165,6 +165,70 @@ class VESC(object):
         """
         return self.get_measurements().current_in
 
+    # ── MCSA Streaming ──────────────────────────────────────────────
+
+    def mcsa_stream_start(self, **kwargs):
+        """Start MCSA three-phase current streaming on the VESC."""
+        self.write(encode(SetMcsaStreamStart(**kwargs)))
+
+    def mcsa_stream_stop(self, **kwargs):
+        """Stop MCSA three-phase current streaming on the VESC."""
+        self.write(encode(SetMcsaStreamStop(**kwargs)))
+
+    def mcsa_stream_read(self, timeout=None):
+        """Read a single MCSA stream packet from the serial buffer.
+
+        :param timeout: Optional read timeout override in seconds.
+        :return: McsaStreamData message or None if no complete packet arrived.
+        """
+        old_timeout = self.serial_port.timeout
+        if timeout is not None:
+            self.serial_port.timeout = timeout
+        try:
+            buf = bytearray()
+            # Read until we have enough bytes for at least one packet
+            while True:
+                chunk = self.serial_port.read(max(1, self.serial_port.in_waiting))
+                if not chunk:
+                    return None
+                buf.extend(chunk)
+                msg, consumed = decode(buf)
+                if msg is not None:
+                    return msg
+        finally:
+            self.serial_port.timeout = old_timeout
+
+    def mcsa_stream_read_continuous(self, callback, duration=None, max_packets=None):
+        """Read MCSA stream packets continuously and invoke *callback* for each.
+
+        :param callback: ``callback(msg)`` — called with each McsaStreamData message.
+                         Return ``False`` from the callback to stop early.
+        :param duration: Maximum duration in seconds (``None`` = unlimited).
+        :param max_packets: Maximum number of packets to read (``None`` = unlimited).
+        """
+        import time as _time
+        deadline = None if duration is None else _time.monotonic() + duration
+        count = 0
+        buf = bytearray()
+        while True:
+            if deadline is not None and _time.monotonic() >= deadline:
+                break
+            if max_packets is not None and count >= max_packets:
+                break
+            chunk = self.serial_port.read(max(1, self.serial_port.in_waiting))
+            if chunk:
+                buf.extend(chunk)
+            while True:
+                msg, consumed = decode(buf)
+                if msg is None:
+                    break
+                buf = buf[consumed:]
+                count += 1
+                if callback(msg) is False:
+                    return
+                if max_packets is not None and count >= max_packets:
+                    return
+
 
 
 

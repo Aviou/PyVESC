@@ -38,7 +38,7 @@ class VESCMessage(type):
             cls._field_names.append(field[0])
             if len(field) >= 3:
                 cls._field_scalars.append(field[2])
-            if field[1] is 's':
+            if field[1] == 's':
                 # string field, add % so we can vary the length
                 cls._fmt_fields += '%u'
                 cls._string_field = idx
@@ -73,6 +73,9 @@ class VESCMessage(type):
     def unpack(msg_bytes):
         msg_id = struct.unpack_from(VESCMessage._endian_fmt + VESCMessage._id_fmt, msg_bytes, 0)
         msg_type = VESCMessage.msg_type(*msg_id)
+        # Check for custom unpack handler (for variable-length messages)
+        if hasattr(msg_type, '_custom_unpack'):
+            return msg_type._custom_unpack(msg_bytes[1:])
         data = None
         if not (msg_type._string_field is None):
             # string field
@@ -108,6 +111,16 @@ class VESCMessage(type):
                 fmt = VESCMessage._endian_fmt + VESCMessage._id_fmt
                 values = (instance.id,)
             return struct.pack(fmt, *values)
+
+        # Check for custom pack handler (for variable-length messages)
+        if hasattr(instance, '_custom_pack'):
+            payload = instance._custom_pack()
+            id_bytes = struct.pack(VESCMessage._endian_fmt + VESCMessage._id_fmt, instance.id)
+            if instance.can_id is not None:
+                can_bytes = struct.pack(VESCMessage._endian_fmt + VESCMessage._can_id_fmt,
+                                        VESCMessage._comm_forward_can, instance.can_id)
+                return can_bytes + id_bytes + payload
+            return id_bytes + payload
 
         field_values = []
         if not instance._field_scalars:

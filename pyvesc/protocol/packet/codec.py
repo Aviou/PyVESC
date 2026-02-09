@@ -115,7 +115,7 @@ class UnpackerBase(object):
         crc_checker.calc(payload)
         if crc_checker.calc(payload) != footer.crc:
             raise CorruptPacket("Invalid checksum value.")
-        if footer.terminator is not Footer.TERMINATOR:
+        if footer.terminator != Footer.TERMINATOR:
             raise CorruptPacket("Invalid terminator: %u" % footer.terminator)
         return
 
@@ -155,10 +155,10 @@ class UnpackerBase(object):
                 header = None
                 return payload, consumed
             except CorruptPacket as corrupt_packet:
-                if errors is 'ignore':
+                if errors == 'ignore':
                     # find the next possible start byte in the buffer
                     return Stateless._recovery_recurse(buffer, header, errors, True)
-                elif errors is 'strict':
+                elif errors == 'strict':
                     raise corrupt_packet
 
     @staticmethod

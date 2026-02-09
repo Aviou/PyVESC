@@ -98,3 +98,15 @@ class Alive(metaclass=VESCMessage):
     id = VedderCmd.COMM_ALIVE
     fields = []
 
+
+class SetMcsaStreamStart(metaclass=VESCMessage):
+    """Start MCSA current streaming on the VESC."""
+    id = VedderCmd.COMM_MCSA_STREAM_START
+    fields = []
+
+
+class SetMcsaStreamStop(metaclass=VESCMessage):
+    """Stop MCSA current streaming on the VESC."""
+    id = VedderCmd.COMM_MCSA_STREAM_STOP
+    fields = []
+

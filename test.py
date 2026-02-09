@@ -357,6 +357,122 @@ class TestMsg(TestCase):
         self.assertTrue(caught)
 
 
+class TestMcsaStreamData(TestCase):
+    def test_single_sample_unpack(self):
+        """Test decoding a MCSA packet with 1 sample."""
+        import struct
+        from pyvesc.protocol.base import VESCMessage
+        from pyvesc.VESC.messages.getters import McsaStreamData
+
+        sample_cnt = 42
+        sample_rate = 30000.0
+        num_samples = 1
+        ia_val, ib_val, ic_val = 1.5, -0.75, 0.25  # Ampere
+
+        # Build payload: cmd_id + header + floats (scaled by 1e3)
+        payload = struct.pack('!B', McsaStreamData.id)
+        payload += struct.pack('!IfB', sample_cnt, sample_rate, num_samples)
+        payload += struct.pack('!f', ia_val * 1e3)
+        payload += struct.pack('!f', ib_val * 1e3)
+        payload += struct.pack('!f', ic_val * 1e3)
+
+        msg = VESCMessage.unpack(payload)
+        self.assertEqual(msg.sample_cnt, sample_cnt)
+        self.assertAlmostEqual(msg.sample_rate, sample_rate, places=0)
+        self.assertEqual(msg.num_samples, 1)
+        self.assertEqual(len(msg.ia), 1)
+        self.assertAlmostEqual(msg.ia[0], ia_val, places=3)
+        self.assertAlmostEqual(msg.ib[0], ib_val, places=3)
+        self.assertAlmostEqual(msg.ic[0], ic_val, places=3)
+
+    def test_multi_sample_unpack(self):
+        """Test decoding a MCSA packet with 32 samples."""
+        import struct
+        from pyvesc.protocol.base import VESCMessage
+        from pyvesc.VESC.messages.getters import McsaStreamData
+
+        sample_cnt = 1024
+        sample_rate = 20000.0
+        num_samples = 32
+        ia_vals = [float(i) * 0.1 for i in range(num_samples)]
+        ib_vals = [float(i) * -0.05 for i in range(num_samples)]
+        ic_vals = [float(i) * 0.02 for i in range(num_samples)]
+
+        payload = struct.pack('!B', McsaStreamData.id)
+        payload += struct.pack('!IfB', sample_cnt, sample_rate, num_samples)
+        fmt = '!%uf' % num_samples
+        payload += struct.pack(fmt, *[v * 1e3 for v in ia_vals])
+        payload += struct.pack(fmt, *[v * 1e3 for v in ib_vals])
+        payload += struct.pack(fmt, *[v * 1e3 for v in ic_vals])
+
+        msg = VESCMessage.unpack(payload)
+        self.assertEqual(msg.sample_cnt, sample_cnt)
+        self.assertEqual(msg.num_samples, 32)
+        self.assertEqual(len(msg.ia), 32)
+        self.assertEqual(len(msg.ib), 32)
+        self.assertEqual(len(msg.ic), 32)
+        for i in range(num_samples):
+            self.assertAlmostEqual(msg.ia[i], ia_vals[i], places=2)
+            self.assertAlmostEqual(msg.ib[i], ib_vals[i], places=2)
+            self.assertAlmostEqual(msg.ic[i], ic_vals[i], places=2)
+
+    def test_pack_roundtrip(self):
+        """Test that packing and unpacking McsaStreamData produces the same data."""
+        from pyvesc.protocol.base import VESCMessage
+        from pyvesc.VESC.messages.getters import McsaStreamData
+
+        msg = McsaStreamData.__new__(McsaStreamData)
+        msg.can_id = None
+        msg.sample_cnt = 100
+        msg.sample_rate = 25000.0
+        msg.num_samples = 3
+        msg.ia = [1.0, 2.0, 3.0]
+        msg.ib = [-1.0, -2.0, -3.0]
+        msg.ic = [0.5, 0.6, 0.7]
+
+        packed = VESCMessage.pack(msg)
+        unpacked = VESCMessage.unpack(packed)
+
+        self.assertEqual(unpacked.sample_cnt, msg.sample_cnt)
+        self.assertEqual(unpacked.num_samples, msg.num_samples)
+        for i in range(msg.num_samples):
+            self.assertAlmostEqual(unpacked.ia[i], msg.ia[i], places=2)
+            self.assertAlmostEqual(unpacked.ib[i], msg.ib[i], places=2)
+            self.assertAlmostEqual(unpacked.ic[i], msg.ic[i], places=2)
+
+    def test_encode_decode_full_packet(self):
+        """Test full encode/decode cycle through the packet framing layer."""
+        import pyvesc
+        from pyvesc.VESC.messages.getters import McsaStreamData
+
+        msg = McsaStreamData.__new__(McsaStreamData)
+        msg.can_id = None
+        msg.sample_cnt = 500
+        msg.sample_rate = 30000.0
+        msg.num_samples = 5
+        msg.ia = [0.1, 0.2, 0.3, 0.4, 0.5]
+        msg.ib = [-0.1, -0.2, -0.3, -0.4, -0.5]
+        msg.ic = [0.01, 0.02, 0.03, 0.04, 0.05]
+
+        packet = pyvesc.encode(msg)
+        decoded, consumed = pyvesc.decode(packet)
+        self.assertEqual(consumed, len(packet))
+        self.assertEqual(decoded.sample_cnt, 500)
+        self.assertEqual(decoded.num_samples, 5)
+        self.assertAlmostEqual(decoded.ia[2], 0.3, places=2)
+
+    def test_start_stop_encode(self):
+        """Test that start/stop messages encode correctly."""
+        import pyvesc
+        from pyvesc.VESC.messages.setters import SetMcsaStreamStart, SetMcsaStreamStop
+
+        start_pkt = pyvesc.encode(SetMcsaStreamStart())
+        stop_pkt = pyvesc.encode(SetMcsaStreamStop())
+        self.assertIsNotNone(start_pkt)
+        self.assertIsNotNone(stop_pkt)
+        self.assertNotEqual(start_pkt, stop_pkt)
+
+
 class TestInterface(TestCase):
     def setUp(self):
         import copy

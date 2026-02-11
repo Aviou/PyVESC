@@ -369,21 +369,21 @@ class TestMcsaStreamData(TestCase):
         num_samples = 1
         ia_val, ib_val, ic_val = 1.5, -0.75, 0.25  # Ampere
 
-        # Build payload: cmd_id + header + floats (scaled by 1e3)
+        # Build payload: cmd_id + header + IEEE float32 (actual Ampere values)
         payload = struct.pack('!B', McsaStreamData.id)
         payload += struct.pack('!IfB', sample_cnt, sample_rate, num_samples)
-        payload += struct.pack('!f', ia_val * 1e3)
-        payload += struct.pack('!f', ib_val * 1e3)
-        payload += struct.pack('!f', ic_val * 1e3)
+        payload += struct.pack('!f', ia_val)
+        payload += struct.pack('!f', ib_val)
+        payload += struct.pack('!f', ic_val)
 
         msg = VESCMessage.unpack(payload)
         self.assertEqual(msg.sample_cnt, sample_cnt)
         self.assertAlmostEqual(msg.sample_rate, sample_rate, places=0)
         self.assertEqual(msg.num_samples, 1)
         self.assertEqual(len(msg.ia), 1)
-        self.assertAlmostEqual(msg.ia[0], ia_val, places=3)
-        self.assertAlmostEqual(msg.ib[0], ib_val, places=3)
-        self.assertAlmostEqual(msg.ic[0], ic_val, places=3)
+        self.assertAlmostEqual(msg.ia[0], ia_val, places=5)
+        self.assertAlmostEqual(msg.ib[0], ib_val, places=5)
+        self.assertAlmostEqual(msg.ic[0], ic_val, places=5)
 
     def test_multi_sample_unpack(self):
         """Test decoding a MCSA packet with 32 samples."""
@@ -401,9 +401,9 @@ class TestMcsaStreamData(TestCase):
         payload = struct.pack('!B', McsaStreamData.id)
         payload += struct.pack('!IfB', sample_cnt, sample_rate, num_samples)
         fmt = '!%uf' % num_samples
-        payload += struct.pack(fmt, *[v * 1e3 for v in ia_vals])
-        payload += struct.pack(fmt, *[v * 1e3 for v in ib_vals])
-        payload += struct.pack(fmt, *[v * 1e3 for v in ic_vals])
+        payload += struct.pack(fmt, *ia_vals)
+        payload += struct.pack(fmt, *ib_vals)
+        payload += struct.pack(fmt, *ic_vals)
 
         msg = VESCMessage.unpack(payload)
         self.assertEqual(msg.sample_cnt, sample_cnt)
@@ -412,9 +412,9 @@ class TestMcsaStreamData(TestCase):
         self.assertEqual(len(msg.ib), 32)
         self.assertEqual(len(msg.ic), 32)
         for i in range(num_samples):
-            self.assertAlmostEqual(msg.ia[i], ia_vals[i], places=2)
-            self.assertAlmostEqual(msg.ib[i], ib_vals[i], places=2)
-            self.assertAlmostEqual(msg.ic[i], ic_vals[i], places=2)
+            self.assertAlmostEqual(msg.ia[i], ia_vals[i], places=5)
+            self.assertAlmostEqual(msg.ib[i], ib_vals[i], places=5)
+            self.assertAlmostEqual(msg.ic[i], ic_vals[i], places=5)
 
     def test_pack_roundtrip(self):
         """Test that packing and unpacking McsaStreamData produces the same data."""

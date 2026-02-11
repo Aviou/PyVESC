@@ -100,7 +100,6 @@ class McsaStreamData(metaclass=VESCMessage):
 
     _HEADER_FMT = '!IfB'  # sample_cnt(u32), sample_rate(f32), num_samples(u8)
     _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
-    _SCALE = 1e3
 
     @classmethod
     def _custom_unpack(cls, data):
@@ -113,10 +112,6 @@ class McsaStreamData(metaclass=VESCMessage):
         ib = list(struct.unpack_from(float_fmt, data, offset))
         offset += float_size
         ic = list(struct.unpack_from(float_fmt, data, offset))
-        # Descale: firmware sends Ampere × 1e3
-        ia = [v / cls._SCALE for v in ia]
-        ib = [v / cls._SCALE for v in ib]
-        ic = [v / cls._SCALE for v in ic]
         msg = cls.__new__(cls)
         msg.can_id = None
         msg.sample_cnt = sample_cnt
@@ -131,7 +126,7 @@ class McsaStreamData(metaclass=VESCMessage):
         num = self.num_samples
         header = struct.pack(self._HEADER_FMT, self.sample_cnt, self.sample_rate, num)
         float_fmt = '!%uf' % num
-        ia_bytes = struct.pack(float_fmt, *[v * self._SCALE for v in self.ia])
-        ib_bytes = struct.pack(float_fmt, *[v * self._SCALE for v in self.ib])
-        ic_bytes = struct.pack(float_fmt, *[v * self._SCALE for v in self.ic])
+        ia_bytes = struct.pack(float_fmt, *self.ia)
+        ib_bytes = struct.pack(float_fmt, *self.ib)
+        ic_bytes = struct.pack(float_fmt, *self.ic)
         return header + ia_bytes + ib_bytes + ic_bytes

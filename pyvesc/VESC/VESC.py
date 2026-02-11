@@ -38,8 +38,12 @@ class VESC(object):
 
         # check firmware version and set GetValue fields to old values if pre version 3.xx
         version = self.get_firmware_version()
-        if int(version.split('.')[0]) < 3:
-            GetValues.fields = pre_v3_33_fields
+        if version is not None:
+            try:
+                if int(version.split('.')[0]) < 3:
+                    GetValues.fields = pre_v3_33_fields
+            except (ValueError, IndexError):
+                pass  # assume modern firmware
 
         # store message info for getting values so it doesn't need to calculate it every time
         msg = GetValues()
@@ -95,9 +99,24 @@ class VESC(object):
         """
         self.serial_port.write(data)
         if num_read_bytes is not None:
-            while self.serial_port.in_waiting <= num_read_bytes:
-                time.sleep(0.000001)  # add some delay just to help the CPU
-            response, consumed = decode(self.serial_port.read(self.serial_port.in_waiting))
+            # Wait for response with timeout. Read incrementally until a valid
+            # packet is decoded or we time out.
+            start = time.monotonic()
+            timeout = max(self.serial_port.timeout, 0.1)
+            buf = bytearray()
+            while (time.monotonic() - start) < timeout:
+                avail = self.serial_port.in_waiting
+                if avail > 0:
+                    buf.extend(self.serial_port.read(avail))
+                    response, consumed = decode(buf)
+                    if response is not None:
+                        return response
+                time.sleep(0.001)
+            # Final attempt with whatever is in the buffer
+            avail = self.serial_port.in_waiting
+            if avail > 0:
+                buf.extend(self.serial_port.read(avail))
+            response, consumed = decode(buf)
             return response
 
     def set_rpm(self, new_rpm, **kwargs):
@@ -133,7 +152,10 @@ class VESC(object):
 
     def get_firmware_version(self):
         msg = GetVersion()
-        return str(self.write(encode_request(msg), num_read_bytes=msg._full_msg_size))
+        response = self.write(encode_request(msg), num_read_bytes=msg._full_msg_size)
+        if response is None:
+            return None
+        return str(response)
 
     def get_rpm(self):
         """
